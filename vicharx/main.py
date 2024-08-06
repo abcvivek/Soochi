@@ -2,10 +2,12 @@ import typer
 
 app = typer.Typer()
 
+
 @app.command()
 def init(notion_page_id: str):
     typer.echo("Checking prerequisites...")
     typer.echo("Process completed successfully.")
+
 
 if __name__ == "__main__":
     app()
