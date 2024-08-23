@@ -1,18 +1,16 @@
 import typer
+from vicharx.pre_requesites import pre_check
+from rich import print
 
 app = typer.Typer()
 
 
 @app.command()
-def init(notion_page_id: str):
-    typer.echo("Checking prerequisites...")
-    typer.echo("Process completed successfully.")
+def init():
+    if not pre_check():
+        print("[bold red]Pre-requisites not met. Exiting...[/bold red]")
+        exit(1)
 
 
 if __name__ == "__main__":
     app()
-
-
-# 1. Install black and run black . Add pre-commit hook
-# 2. Check if local model is available and running
-# 3. Check if notion integration is available
