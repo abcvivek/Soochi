@@ -1,12 +1,12 @@
 [tool.poetry]
-name = "vicharx"
+name = "soochi"
 version = "0.1.0"
 description = ""
-authors = ["Vivek Hegde <vicharx@gmail.com>"]
+authors = ["Vivek Hegde <soochi@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.scripts]
-vicharx = "vicharx.main:app"
+soochi = "soochi.main:app"
 
 [tool.poetry.dependencies]
 python = "^3.12"

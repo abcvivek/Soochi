@@ -1,7 +1,7 @@
 import datetime
 import ollama
 
-from vicharx.constants import (
+from soochi.constants import (
     LOCAL_MODEL,
     NOTION_INTERNAL_INTEGRATION_KEY,
     NOTION_PARENT_PAGE_ID,
@@ -72,7 +72,7 @@ def is_notion_integration_available():
         todays_page = [
             block
             for block in child_blocks
-            if block["child_page"]["title"] == f"{today}-Vichar"
+            if block["child_page"]["title"] == f"{today}-Soochi"
         ]
 
         if not todays_page:

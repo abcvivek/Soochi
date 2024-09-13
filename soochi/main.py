@@ -1,5 +1,5 @@
 import typer
-from vicharx.pre_requesites import pre_check
+from soochi.pre_requesites import pre_check
 from rich import print
 
 app = typer.Typer()
