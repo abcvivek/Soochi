@@ -3,14 +3,19 @@ import feedparser
 from urllib.parse import urlparse, parse_qs
 import trafilatura
 from openai import OpenAI
+import os
+from dotenv import load_dotenv
 
 from soochi.constants import GOOGLE_ALERT_FEEDS
 from soochi.sqlite3_client import SQLiteClient
 from soochi.utils import hash_url
 
+# Load environment variables
+load_dotenv()
+
 # Initializing OpenAI client - see https://platform.openai.com/docs/quickstart?context=python
 client = OpenAI(
-    api_key="<KEY>"
+    api_key=os.getenv("OPENAI_API_KEY")
 )
 
 def init():
@@ -230,4 +235,3 @@ def init():
 
 if __name__ == "__main__":
     init()
-

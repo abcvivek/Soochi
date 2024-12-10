@@ -2,3 +2,8 @@
 __pycache__
 
 **.db
+
+# Environment variables
+.env
+.env.*
+!.env.example
