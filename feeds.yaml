@@ -1,0 +1,11 @@
+feeds:
+  - name: prompts
+    url: https://www.google.co.in/alerts/feeds/17096705175767825624/15093936544173025558
+    enabled: true
+  - name: enterprise
+    url: https://www.google.co.in/alerts/feeds/17096705175767825624/8610919649392730869
+    enabled: false
+  - name: knowledge_graph
+    url: https://www.google.co.in/alerts/feeds/17096705175767825624/7790510261558440743
+    enabled: false
+  # Add more feeds as needed
