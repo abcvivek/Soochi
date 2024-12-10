@@ -3,20 +3,30 @@ import sqlite3
 
 class SQLiteClient:
     def __init__(self, db_path):
+        self.db_path = db_path
         self.conn = sqlite3.connect(db_path)
         self.cursor = self.conn.cursor()
+        self.create_tables()
+
+    def create_tables(self):
         self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS seen_urls (
                 url_hash TEXT PRIMARY KEY,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
+        self.cursor.execute("CREATE INDEX IF NOT EXISTS idx_url_hash ON seen_urls (url_hash);")
+        self.conn.commit()
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
     def fetch_seen_urls_hash(self):
         self.cursor.execute("SELECT url_hash FROM seen_urls")
         return [self.row[0] for self.row in self.cursor.fetchall()]
-
 
     def bulk_insert_seen_urls(self, url_hashes):
         self.cursor.executemany("INSERT INTO seen_urls (url_hash) VALUES (?)", [(url_hash,) for url_hash in url_hashes])
@@ -32,4 +42,3 @@ class SQLiteClient:
     def close(self):
         self.cursor.close()
         self.conn.close()
-

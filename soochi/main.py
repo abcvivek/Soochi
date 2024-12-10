@@ -63,10 +63,10 @@ def deduplicate_urls(feed_links):
 
 
 def fetch_seen_urls_hash():
-    sqlite_client = SQLiteClient("soochi.db")
-    seen_urls_hash = sqlite_client.fetch_seen_urls_hash()
-    logger.info(f"Seen URLs: {len(seen_urls_hash)}")
-    return seen_urls_hash
+    with SQLiteClient("soochi.db") as sqlite_client:
+        seen_urls_hash = sqlite_client.fetch_seen_urls_hash()
+        logger.info(f"Seen URLs: {len(seen_urls_hash)}")
+        return seen_urls_hash
 
 
 def deduplicate_urls_from_all_urls(new_urls, seen_urls_hash):
@@ -172,6 +172,11 @@ def init():
 
     seen_urls_hash = fetch_seen_urls_hash()
     deduped_urls_hash = deduplicate_urls_from_all_urls(new_urls, seen_urls_hash)
+
+    # # store in sqlite
+    # sqlite_client = SQLiteClient("soochi.db")
+    # sqlite_client.bulk_insert_seen_urls(deduped_urls_hash)
+
     deduped_urls = [url for url in new_urls if hash_url(url) in deduped_urls_hash]
 
     tasks = create_tasks(deduped_urls)
