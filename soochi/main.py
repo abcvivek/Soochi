@@ -1,33 +1,30 @@
 import json
+from math import log
+import os
+from re import T
 import feedparser
 from urllib.parse import urlparse, parse_qs
 import trafilatura
 from openai import OpenAI
-import os
 from dotenv import load_dotenv
 from soochi.logger import logger
-import yaml
-
-from soochi.constants import GOOGLE_ALERT_FEEDS
+from soochi.config import config
 from soochi.sqlite3_client import SQLiteClient
 from soochi.utils import hash_url
 
 # Load environment variables
 load_dotenv()
 
-# Load feeds from the feeds.yaml file
-with open('feeds.yaml', 'r') as file:
-    feeds_config = yaml.safe_load(file)
-    GOOGLE_ALERT_FEEDS = {feed['name']: feed['url'] for feed in feeds_config['feeds'] if feed['enabled']}
-
-# Initializing OpenAI client - see https://platform.openai.com/docs/quickstart?context=python
+# Initializing OpenAI client
 client = OpenAI(
-    api_key=os.getenv("OPENAI_API_KEY")
+    api_key=config.openai_api_key
 )
 
-def fetch_feeds(google_alert_feeds):
+IS_TESTING_MODE = False  # Set to True for testing
+
+def fetch_feeds():
     feed_links = []
-    for feed_name, feed_url in google_alert_feeds.items():
+    for feed_name, feed_url in config.feeds.items():
         logger.info(f"Fetching feed: {feed_name}")
         try:
             feed = feedparser.parse(feed_url)
@@ -63,7 +60,7 @@ def deduplicate_urls(feed_links):
 
 
 def fetch_seen_urls_hash():
-    with SQLiteClient("soochi.db") as sqlite_client:
+    with SQLiteClient() as sqlite_client:
         seen_urls_hash = sqlite_client.fetch_seen_urls_hash()
         logger.info(f"Seen URLs: {len(seen_urls_hash)}")
         return seen_urls_hash
@@ -77,6 +74,9 @@ def deduplicate_urls_from_all_urls(new_urls, seen_urls_hash):
 
 def create_tasks(deduped_urls):
     tasks = []
+    with open('soochi/prompts/idea_extractor.txt', 'r') as prompt_file:
+        prompt_content = prompt_file.read()
+
     for url in deduped_urls[0:2]:
         raw_content = trafilatura.fetch_url(url)
         content = trafilatura.extract(raw_content)
@@ -95,50 +95,7 @@ def create_tasks(deduped_urls):
                 "messages": [
                     {
                         "role": "system",
-                        "content": """
-                                You are an expert at analyzing content to extract actionable ideas. Given an article, identify potential SaaS, startup, open-source, 
-                                or general project ideas if they are clearly mentioned or can be reasonably inferred. If the article lacks actionable insights, 
-                                explicitly state that no ideas were identified. Follow these guidelines:
-
-                                Instructions
-                                - Highlight ideas relevant to various domains, such as technology, business, health, environment, social impact or any other applicable field.
-                                - Imagine out of the box ideas which is impactful.
-                                - Ideas can be research, creative, unmet needs or opportunities with a purpose
-                                - Sources of ideas can be explicit mentions, problems or challenges mentioned, emerging trends
-                                - Include ideas for both niche and broad markets.
-                                - Suggest ideas for different technical and non-technical domains.
-                                - Account for varying levels of complexity and scope, from small-scale projects to large ventures.
-                                - Balance creativity with feasibility, ensuring ideas are both innovative and practical.
-                                - Practice "lateral thinking": Look for unexpected connections and innovative applications
-                                - Consider cross-domain innovation potential
-                                - Quick validation: Briefly assess initial feasibility and uniqueness
-
-                                Edge Cases
-                                - Articles with limited explicit problem statements: Infer issues based on context or trends.
-                                - Overly technical or abstract articles: Break down the content into practical applications.
-                                - Vague or broad topics: Focus on specific aspects that can inspire actionable ideas.
-                                - Articles with multiple unrelated themes: Extract ideas for each significant theme.
-                                - Repetition of ideas across sections: Consolidate and refine into a single distinct suggestion.
-                                - No Ideas Found: If the article lacks actionable insights, endReason should be "No ideas found"
-
-                                Output Schema reference
-                                class Response(BaseModel):
-                                    endReason: Union[str, None]
-                                    output: Union[list[Idea], None]
-
-
-                                class Idea(BaseModel):
-                                    title: str = Field(..., description="A catchy, descriptive title for the idea")
-                                    type: str = Field(..., description="SaaS, Startup, Open-Source, or General Project")
-                                    problemStatement: str = Field(..., description="Briefly describe the issue or opportunity the idea addresses")
-                                    solution: str = Field(..., description="Explain the proposed solution breifly in no more than 100 words")
-                                    targetAudience: str = Field(..., description="Identify the primary beneficiaries")
-                                    innovationScore: float = Field(0-10, description="Measure of idea's innovative potential")
-                                    readinessLevel: str = Field(..., description="Technology Readiness Level or Market Readiness")
-                                    potentialApplications: str = Field(..., description="Mention areas or scenarios where the idea could be used")
-                                    prerequisites: str = Field(..., description="Note any technologies, datasets, or skills needed")
-                                    additionalNotes: str = Field(..., description="Any supplementary information, trends, or context")
-                                """
+                        "content": prompt_content
                     },
                     {
                         "role": "user",
@@ -155,6 +112,10 @@ def create_tasks(deduped_urls):
 
 
 def create_file(tasks):
+    # create data folder if it doesn't exist
+    if not os.path.exists("data"):
+        os.makedirs("data")
+
     file_name = "data/batch_tasks_idea.jsonl"
     with open(file_name, 'w') as file:
         for obj in tasks:
@@ -164,20 +125,24 @@ def create_file(tasks):
 
 
 def init():
-    feed_links = fetch_feeds(GOOGLE_ALERT_FEEDS)
+    feed_links = fetch_feeds()
     new_urls = deduplicate_urls(feed_links)
-    logger.info(f"Total feed count: {len(GOOGLE_ALERT_FEEDS)}")
+    logger.info(f"Total feed count: {len(config.feeds)}")
     logger.info(f"Total entry count: {len(feed_links)}")
     logger.info(f"Deduped URLs: {len(new_urls)}")
 
     seen_urls_hash = fetch_seen_urls_hash()
     deduped_urls_hash = deduplicate_urls_from_all_urls(new_urls, seen_urls_hash)
 
-    # # store in sqlite
-    # sqlite_client = SQLiteClient("soochi.db")
-    # sqlite_client.bulk_insert_seen_urls(deduped_urls_hash)
+    if not IS_TESTING_MODE:
+        with SQLiteClient() as sqlite_client:
+            sqlite_client.bulk_insert_seen_urls(deduped_urls_hash)
 
     deduped_urls = [url for url in new_urls if hash_url(url) in deduped_urls_hash]
+
+    if not deduped_urls:
+        logger.info("No new URLs to process")
+        return
 
     tasks = create_tasks(deduped_urls)
     logger.info(len(tasks))
@@ -191,13 +156,24 @@ def init():
 
     logger.info(batch_file)
 
-    # batch_job = client.batches.create(
-    #     input_file_id=batch_file.id,
-    #     endpoint="/v1/chat/completions",
-    #     completion_window="24h"
-    # )
+    batch_job = client.batches.create(
+        input_file_id=batch_file.id,
+        endpoint="/v1/chat/completions",
+        completion_window="24h"
+    )
 
-    # logger.info(batch_job)
+    logger.info(batch_job)
+
+    # Store the batch jobId in a database
+    with SQLiteClient() as sqlite_client:
+        sqlite_client.create_batch_job(batch_job.id)
+
+    logger.info("Batch job created")
+
+    # Delete the local file
+    os.remove(file_name)
+
+    logger.info("Local File deleted")
 
     
 

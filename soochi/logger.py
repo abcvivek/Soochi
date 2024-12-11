@@ -1,12 +1,10 @@
 import logging
-import os
+from soochi.config import config
 
 # Configure logging
-LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO').upper()
-
 logging.basicConfig(
-    level=LOG_LEVEL,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=config.log_level,
+    format=config.log_format,
 )
 
 logger = logging.getLogger(__name__)

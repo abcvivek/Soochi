@@ -8,4 +8,65 @@ feeds:
   - name: knowledge_graph
     url: https://www.google.co.in/alerts/feeds/17096705175767825624/7790510261558440743
     enabled: false
-  # Add more feeds as needed
+  - name: open_source
+    url: https://www.google.co.in/alerts/feeds/17096705175767825624/12906450823099279875
+    enabled: false
+  - name: software_engineer
+    url: https://www.google.co.in/alerts/feeds/17096705175767825624/10540573693212933678
+    enabled: false
+  - name: system_design
+    url: https://www.google.co.in/alerts/feeds/17096705175767825624/1709833560205310734
+    enabled: false
+  - name: agent
+    url: https://www.google.co.in/alerts/feeds/17096705175767825624/15005117206217098631
+    enabled: false
+  - name: ai
+    url: https://www.google.co.in/alerts/feeds/17096705175767825624/7446155583012558192
+    enabled: false
+  - name: ml
+    url: https://www.google.co.in/alerts/feeds/17096705175767825624/16667665989211554628
+    enabled: false
+  - name: analytics
+    url: https://www.google.co.in/alerts/feeds/17096705175767825624/11822121458611196447
+    enabled: false
+  - name: bangalore
+    url: https://www.google.co.in/alerts/feeds/17096705175767825624/15005117206217100957
+    enabled: false
+  - name: bengaluru
+    url: https://www.google.co.in/alerts/feeds/17096705175767825624/7446155583012558635
+    enabled: false
+  - name: embeddings
+    url: https://www.google.co.in/alerts/feeds/17096705175767825624/13117572597998299371
+    enabled: false
+  - name: india
+    url: https://www.google.co.in/alerts/feeds/17096705175767825624/15005117206217098179
+    enabled: false
+  - name: karnataka
+    url: https://www.google.co.in/alerts/feeds/17096705175767825624/7446155583012557078
+    enabled: false
+  - name: llm
+    url: https://www.google.co.in/alerts/feeds/17096705175767825624/11863932128238127800
+    enabled: false
+  - name: moneycontrol
+    url: https://www.google.co.in/alerts/feeds/17096705175767825624/11147363633042895953
+    enabled: false
+  - name: prompt_engineering
+    url: https://www.google.co.in/alerts/feeds/17096705175767825624/15093936544173025558
+    enabled: false
+  - name: startup
+    url: https://www.google.co.in/alerts/feeds/17096705175767825624/11513127569572017574
+    enabled: false
+  - name: techcrunch
+    url: https://www.google.co.in/alerts/feeds/17096705175767825624/1561839286795536552
+    enabled: false
+  - name: venture
+    url: https://www.google.co.in/alerts/feeds/17096705175767825624/11147363633042896984
+    enabled: false
+
+
+
+# https://github.com/kilimchoi/engineering-blogs/blob/master/engineering_blogs.opml - Engineering Blogs
+
+# https://github.com/mshibanami/GitHubTrendingRSS - Trending Packages - Github
+
+# Reddit

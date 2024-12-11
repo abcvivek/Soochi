@@ -1,10 +1,13 @@
 import sqlite3
-
+from soochi.config import config
 
 class SQLiteClient:
-    def __init__(self, db_path):
-        self.db_path = db_path
-        self.conn = sqlite3.connect(db_path)
+    def __init__(self):
+        self.db_path = config.db_file
+        self.conn = sqlite3.connect(
+            self.db_path,
+            timeout=config.db_timeout
+        )
         self.cursor = self.conn.cursor()
         self.create_tables()
 
@@ -16,6 +19,15 @@ class SQLiteClient:
             );
         """)
         self.cursor.execute("CREATE INDEX IF NOT EXISTS idx_url_hash ON seen_urls (url_hash);")
+
+        # create table to store the batchId
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS batch_jobs (
+                batch_id TEXT PRIMARY KEY,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+
         self.conn.commit()
 
     def __enter__(self):
@@ -37,6 +49,10 @@ class SQLiteClient:
             DELETE FROM seen_urls
             WHERE created_at < DATETIME('now', '-7 days');
         """)
+        self.conn.commit()
+
+    def create_batch_job(self, batch_id):
+        self.cursor.execute("INSERT INTO batch_jobs (batch_id) VALUES (?)", (batch_id,))
         self.conn.commit()
 
     def close(self):
