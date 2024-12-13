@@ -11,6 +11,13 @@ class Config:
         # OpenAI settings
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
 
+        # Pinecone settings
+        self.pinecone_api_key = os.getenv("PINECONE_API_KEY")
+        self.pinecone_index_name = os.getenv("PINECONE_INDEX_NAME")
+
+        # Notion settings
+        self.notion_api_key = os.getenv("NOTION_API_KEY")
+
         # Database settings
         self.db_file = self.project_root / "soochi.db"
         self.db_timeout = int(os.getenv("DB_TIMEOUT", "30"))

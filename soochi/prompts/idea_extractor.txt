@@ -15,6 +15,10 @@ Instructions
 - Consider cross-domain innovation potential
 - Quick validation: Briefly assess initial feasibility and uniqueness
 
+Important
+- Keep the ideas and solution grounded. Ideas should be focused on real-world applications.
+- Avoid overgeneralization or broad ideas. Focus on specific issues or opportunities.
+
 Edge Cases
 - Articles with limited explicit problem statements: Infer issues based on context or trends.
 - Overly technical or abstract articles: Break down the content into practical applications.
@@ -31,12 +35,11 @@ class Response(BaseModel):
 
 class Idea(BaseModel):
     title: str = Field(..., description="A catchy, descriptive title for the idea")
-    type: str = Field(..., description="SaaS, Startup, Open-Source, or General Project")
+    type: str = Field(..., description="SaaS, Startup, Open-Source, or General-Project")
     problemStatement: str = Field(..., description="Briefly describe the issue or opportunity the idea addresses")
     solution: str = Field(..., description="Explain the proposed solution breifly in no more than 100 words")
     targetAudience: str = Field(..., description="Identify the primary beneficiaries")
     innovationScore: float = Field(0-10, description="Measure of idea's innovative potential")
-    readinessLevel: str = Field(..., description="Technology Readiness Level or Market Readiness")
     potentialApplications: str = Field(..., description="Mention areas or scenarios where the idea could be used")
     prerequisites: str = Field(..., description="Note any technologies, datasets, or skills needed")
     additionalNotes: str = Field(..., description="Any supplementary information, trends, or context")

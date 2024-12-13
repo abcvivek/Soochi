@@ -1,7 +1,6 @@
 import json
 from math import log
 import os
-from re import T
 import feedparser
 from urllib.parse import urlparse, parse_qs
 import trafilatura
@@ -87,10 +86,14 @@ def create_tasks(deduped_urls):
             "method": "POST",
             "url": "/v1/chat/completions",
             "body": {
-                "model": "gpt-4o-mini",
+                "model": "gpt-4o",
                 "temperature": 0.5,
                 "response_format": {
                     "type": "json_object"
+                },
+                "metadata": {
+                    "url": url,
+                    "source": "RSS"
                 },
                 "messages": [
                     {
@@ -175,35 +178,12 @@ def init():
 
     logger.info("Local File deleted")
 
-    
-
-    """
-    
-    1. Prompt Generation - Done
-    2. Basic Chat Conversation
-    3. Create File
-    4. Send Batch Request
-    5. Delete File
-    6. Response Extraction
-
-
-    Extracted info will be stored in vector db - pinecone
-
-    We might use Notion as required for UI.
-    
-    """
-
-
     # Prompts
     """
     1. Finding SaaS/Startup/Opensource/Project Ideas
     2. Finding a profitable idea which could be a simple dropshipping business
     3. Finding Problems and Pain Points and the mention solutions
     4. Unique concepts mentioned
-
-    https://chatgpt.com/share/6739c5ab-fecc-8005-acf7-7a4df2b925b9 - Prompt
-
-    https://cookbook.openai.com/examples/batch_processing
     """
 
 

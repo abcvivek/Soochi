@@ -1,0 +1,242 @@
+import json
+import os
+import logging
+from openai import OpenAI
+from soochi.config import config
+from soochi.sqlite3_client import SQLiteClient
+from dotenv import load_dotenv
+from pinecone import Pinecone, ServerlessSpec
+from notion_client import Client as NotionClient
+from soochi.constants import (
+    PINECONE_INDEX_NAME,
+    EMBEDDING_DIMENSION,
+    EMBEDDING_METRIC,
+    SIMILARITY_THRESHOLD,
+    EMBEDDING_MODEL,
+    BATCH_RESULTS_FILE,
+    AWS_REGION,
+    AWS_CLOUD
+)
+
+# Set up logging
+logger = logging.getLogger(__name__)
+
+# Load environment variables
+load_dotenv()
+
+# Initialize OpenAI client
+openai_client = OpenAI(api_key=config.openai_api_key)
+
+# Initialize Pinecone client
+pinecone_client = Pinecone(api_key=config.pinecone_api_key)
+
+# Initialize Notion client
+notion_client = NotionClient(auth=config.notion_api_key)
+
+# Check if the index already exists
+try:
+    pinecone_client.describe_index(PINECONE_INDEX_NAME)
+    logger.info(f"Index '{PINECONE_INDEX_NAME}' already exists.")
+except Exception as e:
+    if "not found" in str(e):
+        # Index does not exist, so create it
+        pinecone_client.create_index(
+            name=PINECONE_INDEX_NAME,
+            dimension=EMBEDDING_DIMENSION,
+            metric=EMBEDDING_METRIC,
+            spec=ServerlessSpec(
+                cloud=AWS_CLOUD,
+                region=AWS_REGION
+            )
+        )
+        logger.info(f"Index '{PINECONE_INDEX_NAME}' created.")
+    else:
+        logger.error(f"Error checking index: {e}")
+
+def write_ideas_to_notion(ideas):
+    """Write ideas to Notion database."""
+    logger.info(f"Writing {len(ideas)} ideas to Notion")
+    try:
+        for idea in ideas:
+            notion_client.pages.create(
+                parent={"database_id": os.getenv("NOTION_DATABASE_ID")},
+                properties={
+                    "Title": {"title": [{"text": {"content": idea['title']}}]},
+                    "Type": {"rich_text": [{"text": {"content": idea['type']}}]},
+                    "Problem Statement": {"rich_text": [{"text": {"content": idea['problemStatement']}}]},
+                    "Solution": {"rich_text": [{"text": {"content": idea['solution']}}]},
+                    "Target Audience": {"rich_text": [{"text": {"content": idea['targetAudience']}}]},
+                    "Innovation Score": {"number": idea['innovationScore']},
+                    "Readiness Level": {"rich_text": [{"text": {"content": idea['readinessLevel']}}]},
+                    "Potential Applications": {"rich_text": [{"text": {"content": idea['potentialApplications']}}]},
+                    "Prerequisites": {"rich_text": [{"text": {"content": idea['prerequisites']}}]},
+                    "Additional Notes": {"rich_text": [{"text": {"content": idea['additionalNotes']}}]},
+                    "Count": {"number": idea.get('count', 1)}
+                }
+            )
+        logger.info("Successfully wrote ideas to Notion")
+    except Exception as e:
+        logger.error(f"Error writing to Notion: {e}")
+        raise
+
+def get_latest_batch_id(sqlite_client):
+    """Fetch the latest batch ID from the SQLite database."""
+    logger.debug("Fetching latest batch ID from SQLite")
+    sqlite_client.cursor.execute("SELECT batch_id FROM batch_jobs ORDER BY created_at DESC LIMIT 1;")
+    batch_id = sqlite_client.cursor.fetchone()
+    if batch_id:
+        logger.info(f"Found latest batch ID: {batch_id[0]}")
+        return batch_id[0]
+    logger.warning("No batch ID found")
+    return None
+
+def check_batch_status(batch_id):
+    """Check the status of a batch job from OpenAI."""
+    logger.info(f"Checking batch status for ID: {batch_id}")
+    batch_status = openai_client.batches.retrieve(batch_id)
+    if batch_status.status != "completed" or batch_status.output_file_id is None:
+        logger.error(f"Batch {batch_id} failed. Please check the logs in platform.openai.com.")
+        return
+    logger.info(f"Batch {batch_id} completed successfully")
+    return batch_status.output_file_id
+
+def save_and_parse_results(result_file_id):
+    """Save and parse the results from OpenAI batch job."""
+    logger.info(f"Fetching content for result file ID: {result_file_id}")
+    result = openai_client.files.content(result_file_id).content
+    
+    logger.debug(f"Saving results to {BATCH_RESULTS_FILE}")
+    with open(BATCH_RESULTS_FILE, 'wb') as file:
+        file.write(result)
+    
+    results = []
+    logger.debug("Parsing saved results")
+    with open(BATCH_RESULTS_FILE, 'r') as file:
+        for line in file:
+            json_object = json.loads(line.strip())
+            results.append(json_object)
+
+    logger.debug("Processing parsed results")
+    results_parsed = []
+    for result in results:
+        results_parsed.append(json.loads(result['response']['body']['choices'][0]['message']['content']))
+
+    ideas = []
+    for result in results_parsed:
+        if result.get('output'):
+            ideas.extend(result['output'])
+    
+    logger.info(f"Successfully parsed {len(ideas)} ideas")
+    return ideas
+
+def create_embedding(text):
+    """Create embedding for the given text using OpenAI."""
+    logger.debug(f"Creating embedding for text: {text[:50]}...")
+    try:
+        embedding = openai_client.embeddings.create(
+            input=text,
+            model=EMBEDDING_MODEL,
+            dimensions=EMBEDDING_DIMENSION
+        )
+        if embedding.data:
+            logger.debug("Successfully created embedding")
+            return embedding.data[0].embedding
+        logger.warning("No embedding data returned from API")
+        return None
+    except Exception as e:
+        logger.error(f"Error creating embedding: {e}")
+        return None
+
+def process_idea_vectors(ideas):
+    """Process ideas and handle vector similarity checks."""
+    logger.info(f"Processing vectors for {len(ideas)} ideas")
+    index = pinecone_client.Index(PINECONE_INDEX_NAME)
+    
+    for i, idea in enumerate(ideas, 1):
+        logger.debug(f"Processing idea {i}/{len(ideas)}: {idea['title']}")
+        embedding = create_embedding(f"{idea['problemStatement']}_{idea['solution']}")
+        if not embedding:
+            logger.warning(f"Skipping idea {idea['title']} due to embedding failure")
+            continue
+            
+        idea['embeddings'] = embedding
+        query_result = index.query(
+            vector=idea['embeddings'],
+            top_k=5,
+            include_metadata=True
+        )
+
+        if handle_similar_ideas(index, query_result, idea):
+            logger.debug(f"Found similar idea for {idea['title']}")
+            continue
+
+        logger.debug(f"Adding new idea to DB: {idea['title']}")
+        add_new_idea_to_db(index, idea)
+
+def handle_similar_ideas(index, query_result, idea):
+    """Handle similar ideas found in the database."""
+    for match_ in query_result['matches']:
+        if match_['score'] > SIMILARITY_THRESHOLD:
+            logger.info(f"Found similar idea with score {match_['score']} for {idea['title']}")
+            match_['metadata']['count'] += 1
+            index.update(
+                id=match_['id'],
+                set_metadata=match_['metadata']
+            )
+            return True
+    return False
+
+def add_new_idea_to_db(index, idea):
+    """Add a new idea to the vector database."""
+    try:
+        index.upsert(
+            vectors=[{
+                "id": idea['title'],
+                "metadata": {
+                    "title": idea['title'],
+                    "type": idea['type'],
+                    "problemStatement": idea['problemStatement'],
+                    "solution": idea['solution'],
+                    "targetAudience": idea['targetAudience'],
+                    "innovationScore": idea['innovationScore'],
+                    "readinessLevel": idea['readinessLevel'],
+                    "potentialApplications": idea['potentialApplications'],
+                    "prerequisites": idea['prerequisites'],
+                    "additionalNotes": idea['additionalNotes'],
+                    "count": 1
+                },
+                "values": idea['embeddings']
+            }]
+        )
+        logger.info(f"Successfully added new idea: {idea['title']}")
+    except Exception as e:
+        logger.error(f"Error adding idea to database: {e}")
+        raise
+
+def fetch_batch_status():
+    """Main function to fetch and process batch status."""
+    logger.info("Starting batch status fetch process")
+    try:
+        with SQLiteClient() as sqlite_client:
+            batch_id = get_latest_batch_id(sqlite_client)
+            if not batch_id:
+                logger.warning("No batch jobs found")
+                return
+
+            result_file_id = check_batch_status(batch_id)
+
+            if not result_file_id:
+                logger.warning("No result file ID found")
+                return
+            
+            ideas = save_and_parse_results(result_file_id)
+            process_idea_vectors(ideas)
+            write_ideas_to_notion(ideas)
+            
+            logger.info(f"Successfully completed batch processing for {batch_id}")
+    except Exception as e:
+        logger.error(f"Error processing batch: {str(e)}")
+        raise
+
+if __name__ == "__main__":
+    fetch_batch_status()
