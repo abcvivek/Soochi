@@ -1,5 +1,5 @@
 # Use official lightweight Python image
-FROM python:3.12.9-slim
+FROM --platform=linux/amd64 python:3.12.9-slim
 
 # Set environment variables
 ENV POETRY_VERSION=2.0.1 \
