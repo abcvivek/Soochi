@@ -1,5 +1,4 @@
 import json
-from math import log
 import os
 import feedparser
 from urllib.parse import urlparse, parse_qs
@@ -8,7 +7,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from soochi.logger import logger
 from soochi.config import config
-from soochi.sqlite3_client import SQLiteClient
+from soochi.mongodb_client import MongoDBClient
 from soochi.utils import hash_url
 
 # Load environment variables
@@ -19,7 +18,6 @@ client = OpenAI(
     api_key=config.openai_api_key
 )
 
-IS_TESTING_MODE = False  # Set to True for testing
 
 def fetch_feeds():
     feed_links = []
@@ -59,8 +57,8 @@ def deduplicate_urls(feed_links):
 
 
 def fetch_seen_urls_hash():
-    with SQLiteClient() as sqlite_client:
-        seen_urls_hash = sqlite_client.fetch_seen_urls_hash()
+    with MongoDBClient() as mongodb_client:
+        seen_urls_hash = mongodb_client.fetch_seen_urls_hash()
         logger.info(f"Seen URLs: {len(seen_urls_hash)}")
         return seen_urls_hash
 
@@ -90,10 +88,6 @@ def create_tasks(deduped_urls):
                 "temperature": 0.5,
                 "response_format": {
                     "type": "json_object"
-                },
-                "metadata": {
-                    "url": url,
-                    "source": "RSS"
                 },
                 "messages": [
                     {
@@ -137,9 +131,9 @@ def init():
     seen_urls_hash = fetch_seen_urls_hash()
     deduped_urls_hash = deduplicate_urls_from_all_urls(new_urls, seen_urls_hash)
 
-    if not IS_TESTING_MODE:
-        with SQLiteClient() as sqlite_client:
-            sqlite_client.bulk_insert_seen_urls(deduped_urls_hash)
+    with MongoDBClient() as mongodb_client:
+        mongodb_client.bulk_insert_seen_urls(deduped_urls_hash)
+        
 
     deduped_urls = [url for url in new_urls if hash_url(url) in deduped_urls_hash]
 
@@ -168,8 +162,8 @@ def init():
     logger.info(batch_job)
 
     # Store the batch jobId in a database
-    with SQLiteClient() as sqlite_client:
-        sqlite_client.create_batch_job(batch_job.id)
+    with MongoDBClient() as mongodb_client:
+        mongodb_client.create_batch_job(batch_job.id)
 
     logger.info("Batch job created")
 

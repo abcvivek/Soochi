@@ -7,3 +7,7 @@ __pycache__
 .env
 .env.*
 !.env.example
+
+# windsurf rules
+.windsurfrules
+notes.txt

@@ -17,10 +17,10 @@ class Config:
 
         # Notion settings
         self.notion_api_key = os.getenv("NOTION_API_KEY")
-
-        # Database settings
-        self.db_file = self.project_root / "soochi.db"
-        self.db_timeout = int(os.getenv("DB_TIMEOUT", "30"))
+        
+        # MongoDB settings
+        self.mongo_uri = os.getenv("MONGO_URI")
+        self.mongo_db_name = os.getenv("MONGO_DB_NAME")
 
         # Logging settings
         self.log_level = os.getenv("LOG_LEVEL", "INFO").upper()

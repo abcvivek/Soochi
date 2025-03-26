@@ -3,7 +3,7 @@ import os
 import logging
 from openai import OpenAI
 from soochi.config import config
-from soochi.sqlite3_client import SQLiteClient
+from soochi.mongodb_client import MongoDBClient
 from dotenv import load_dotenv
 from pinecone import Pinecone, ServerlessSpec
 from notion_client import Client as NotionClient
@@ -67,7 +67,6 @@ def write_ideas_to_notion(ideas):
                     "Solution": {"rich_text": [{"text": {"content": idea['solution']}}]},
                     "Target Audience": {"rich_text": [{"text": {"content": idea['targetAudience']}}]},
                     "Innovation Score": {"number": idea['innovationScore']},
-                    "Readiness Level": {"rich_text": [{"text": {"content": idea['readinessLevel']}}]},
                     "Potential Applications": {"rich_text": [{"text": {"content": idea['potentialApplications']}}]},
                     "Prerequisites": {"rich_text": [{"text": {"content": idea['prerequisites']}}]},
                     "Additional Notes": {"rich_text": [{"text": {"content": idea['additionalNotes']}}]},
@@ -79,14 +78,13 @@ def write_ideas_to_notion(ideas):
         logger.error(f"Error writing to Notion: {e}")
         raise
 
-def get_latest_batch_id(sqlite_client):
-    """Fetch the latest batch ID from the SQLite database."""
-    logger.debug("Fetching latest batch ID from SQLite")
-    sqlite_client.cursor.execute("SELECT batch_id FROM batch_jobs ORDER BY created_at DESC LIMIT 1;")
-    batch_id = sqlite_client.cursor.fetchone()
+def get_latest_batch_id(mongodb_client):
+    """Fetch the latest batch ID from the MongoDB database."""
+    logger.debug("Fetching latest batch ID from MongoDB")
+    batch_id = mongodb_client.get_latest_batch_id()
     if batch_id:
-        logger.info(f"Found latest batch ID: {batch_id[0]}")
-        return batch_id[0]
+        logger.info(f"Found latest batch ID: {batch_id}")
+        return batch_id
     logger.warning("No batch ID found")
     return None
 
@@ -199,7 +197,6 @@ def add_new_idea_to_db(index, idea):
                     "solution": idea['solution'],
                     "targetAudience": idea['targetAudience'],
                     "innovationScore": idea['innovationScore'],
-                    "readinessLevel": idea['readinessLevel'],
                     "potentialApplications": idea['potentialApplications'],
                     "prerequisites": idea['prerequisites'],
                     "additionalNotes": idea['additionalNotes'],
@@ -217,8 +214,8 @@ def fetch_batch_status():
     """Main function to fetch and process batch status."""
     logger.info("Starting batch status fetch process")
     try:
-        with SQLiteClient() as sqlite_client:
-            batch_id = get_latest_batch_id(sqlite_client)
+        with MongoDBClient() as mongodb_client:
+            batch_id = get_latest_batch_id(mongodb_client)
             if not batch_id:
                 logger.warning("No batch jobs found")
                 return

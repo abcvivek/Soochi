@@ -7,9 +7,9 @@ EMBEDDING_METRIC = "cosine"
 SIMILARITY_THRESHOLD = 0.75
 EMBEDDING_MODEL = "text-embedding-3-small"
 
-# File paths
-BATCH_RESULTS_FILE = "data/batch_job_results.jsonl"
-
-# AWS configuration
+# Pinecone AWS configuration
 AWS_REGION = "us-east-1"
 AWS_CLOUD = "aws"
+
+# File paths
+BATCH_RESULTS_FILE = "data/batch_job_results.jsonl"

@@ -16,6 +16,7 @@ openai = "1.57.0"
 python-dotenv = "1.0.1"
 pinecone-client = "5.0.1"
 notion-client = " 2.2.1"
+pymongo = "^4.11.3"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.8.0"
