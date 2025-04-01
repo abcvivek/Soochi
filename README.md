@@ -23,6 +23,26 @@ Soochi is an AI-powered content aggregation and processing system designed to co
    DB_TIMEOUT=30
    ```
 
+
+## Available Environments
+
+- **dev**: Development environment (default)
+- **prod**: Production environment
+
+## Switching Environments
+
+To switch between environments, set the `SOOCHI_ENV` environment variable before running your application:
+
+```bash
+# For development (default)
+export SOOCHI_ENV=dev
+python -m soochi.main
+
+# For production
+export SOOCHI_ENV=prod
+python -m soochi.main
+```
+
 ## Usage
 To run the application, use the following command:
 ```bash

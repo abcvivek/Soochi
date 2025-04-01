@@ -1,9 +1,14 @@
 import os
 import yaml
 from pathlib import Path
+from dotenv import load_dotenv
 
 class Config:
     def __init__(self):
+        # Load appropriate .env file based on environment
+        self.env = os.getenv("SOOCHI_ENV", "dev")
+        self._load_env_file()
+        
         # Project paths
         self.project_root = Path(__file__).parent.parent
         self.feeds_file = self.project_root / "feeds.yaml"
@@ -28,6 +33,22 @@ class Config:
 
         # Load feeds from YAML
         self.feeds = self._load_feeds()
+        
+    def _load_env_file(self):
+        """Load the appropriate .env file based on the environment."""
+        env_file = ".env"
+        
+        # Check for environment-specific .env file
+        if self.env != "dev":
+            env_specific_file = f".env.{self.env}"
+            if Path(env_specific_file).exists():
+                env_file = env_specific_file
+                print(f"Loading environment from {env_file}")
+            else:
+                print(f"Warning: {env_specific_file} not found, falling back to .env")
+        
+        # Load the environment file
+        load_dotenv(env_file)
 
     def _load_feeds(self):
         """Load and parse feeds from YAML file."""

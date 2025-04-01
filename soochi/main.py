@@ -64,9 +64,37 @@ def fetch_seen_urls_hash():
 
 
 def deduplicate_urls_from_all_urls(new_urls, seen_urls_hash):
-    deduped_urls_hash = [hash_url(url) for url in new_urls if hash_url(url) not in seen_urls_hash]
-    logger.info(f"Deduped URLs: {len(deduped_urls_hash)}")
-    return deduped_urls_hash
+    deduped_urls = [url for url in new_urls if hash_url(url) not in seen_urls_hash]
+    logger.info(f"Deduped URLs: {len(deduped_urls)}")
+    return deduped_urls
+
+
+def extract_url_metadata(urls):
+    url_data_list = []
+    
+    for url in urls:
+        try:
+            raw_content = trafilatura.fetch_url(url)
+            if not raw_content:
+                continue
+                
+            # Extract title and content
+            metadata = trafilatura.extract_metadata(raw_content)
+                
+            title = metadata.title if metadata and metadata.title else "No title"
+            
+            url_data = {
+                "url_hash": hash_url(url),
+                "url": url,
+                "title": title,
+            }
+            
+            url_data_list.append(url_data)
+            
+        except Exception as e:
+            logger.error(f"Error extracting metadata from {url}: {e}")
+    
+    return url_data_list
 
 
 def create_tasks(deduped_urls):
@@ -129,17 +157,18 @@ def init():
     logger.info(f"Deduped URLs: {len(new_urls)}")
 
     seen_urls_hash = fetch_seen_urls_hash()
-    deduped_urls_hash = deduplicate_urls_from_all_urls(new_urls, seen_urls_hash)
-
-    with MongoDBClient() as mongodb_client:
-        mongodb_client.bulk_insert_seen_urls(deduped_urls_hash)
-        
-
-    deduped_urls = [url for url in new_urls if hash_url(url) in deduped_urls_hash]
+    deduped_urls = deduplicate_urls_from_all_urls(new_urls, seen_urls_hash)
 
     if not deduped_urls:
         logger.info("No new URLs to process")
         return
+
+    # Extract metadata from URLs
+    url_data_list = extract_url_metadata(deduped_urls)
+    
+    # Insert URLs with metadata into database
+    with MongoDBClient() as mongodb_client:
+        mongodb_client.bulk_insert_seen_urls(url_data_list)
 
     tasks = create_tasks(deduped_urls)
     logger.info(len(tasks))

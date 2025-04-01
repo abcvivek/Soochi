@@ -53,11 +53,26 @@ except Exception as e:
     else:
         logger.error(f"Error checking index: {e}")
 
-def write_ideas_to_notion(ideas):
+def write_ideas_to_notion(ideas, mongodb_client):
     """Write ideas to Notion database."""
     logger.info(f"Writing {len(ideas)} ideas to Notion")
     try:
         for idea in ideas:
+            # Fetch URL metadata if url_hash is available
+            url_metadata = {"url": "", "title": "", "created_at": ""}
+            if idea.get('url_hash'):
+                url_metadata = fetch_url_metadata(mongodb_client, idea['url_hash'])
+            
+            # Format date for Notion if available
+            notion_date = None
+            if url_metadata["created_at"]:
+                notion_date = {
+                    "date": {
+                        "start": url_metadata["created_at"].isoformat()
+                    }
+                }
+            
+            # Create Notion page with the additional metadata
             notion_client.pages.create(
                 parent={"database_id": os.getenv("NOTION_DATABASE_ID")},
                 properties={
@@ -70,7 +85,10 @@ def write_ideas_to_notion(ideas):
                     "Potential Applications": {"rich_text": [{"text": {"content": idea['potentialApplications']}}]},
                     "Prerequisites": {"rich_text": [{"text": {"content": idea['prerequisites']}}]},
                     "Additional Notes": {"rich_text": [{"text": {"content": idea['additionalNotes']}}]},
-                    "Count": {"number": idea.get('count', 1)}
+                    "Count": {"number": idea.get('count', 1)},
+                    "Source URL": {"url": url_metadata["url"] if url_metadata["url"] else None},
+                    "Source Title": {"rich_text": [{"text": {"content": url_metadata["title"]}}] if url_metadata["title"] else []},
+                    "Processed Date": notion_date if notion_date else {"date": None}
                 }
             )
         logger.info("Successfully wrote ideas to Notion")
@@ -78,25 +96,22 @@ def write_ideas_to_notion(ideas):
         logger.error(f"Error writing to Notion: {e}")
         raise
 
-def get_latest_batch_id(mongodb_client):
-    """Fetch the latest batch ID from the MongoDB database."""
-    logger.debug("Fetching latest batch ID from MongoDB")
-    batch_id = mongodb_client.get_latest_batch_id()
-    if batch_id:
-        logger.info(f"Found latest batch ID: {batch_id}")
-        return batch_id
-    logger.warning("No batch ID found")
-    return None
-
-def check_batch_status(batch_id):
-    """Check the status of a batch job from OpenAI."""
-    logger.info(f"Checking batch status for ID: {batch_id}")
-    batch_status = openai_client.batches.retrieve(batch_id)
-    if batch_status.status != "completed" or batch_status.output_file_id is None:
-        logger.error(f"Batch {batch_id} failed. Please check the logs in platform.openai.com.")
-        return
-    logger.info(f"Batch {batch_id} completed successfully")
-    return batch_status.output_file_id
+def fetch_url_metadata(mongodb_client, url_hash):
+    """Fetch URL metadata from the seen_urls collection."""
+    logger.debug(f"Fetching URL metadata for hash: {url_hash}")
+    try:
+        url_data = mongodb_client.seen_urls.find_one({"url_hash": url_hash})
+        if url_data:
+            return {
+                "url": url_data.get("url", ""),
+                "title": url_data.get("title", ""),
+                "created_at": url_data.get("created_at", "")
+            }
+        logger.warning(f"No URL metadata found for hash: {url_hash}")
+        return {"url": "", "title": "", "created_at": ""}
+    except Exception as e:
+        logger.error(f"Error fetching URL metadata: {e}")
+        return {"url": "", "title": "", "created_at": ""}
 
 def save_and_parse_results(result_file_id):
     """Save and parse the results from OpenAI batch job."""
@@ -117,7 +132,19 @@ def save_and_parse_results(result_file_id):
     logger.debug("Processing parsed results")
     results_parsed = []
     for result in results:
-        results_parsed.append(json.loads(result['response']['body']['choices'][0]['message']['content']))
+        # Extract custom_id which contains the URL hash
+        custom_id = result.get('custom_id', '')
+        url_hash = custom_id.replace('task-', '') if custom_id.startswith('task-') else ''
+        
+        # Parse the content
+        content = json.loads(result['response']['body']['choices'][0]['message']['content'])
+        
+        # Add the URL hash to each idea for later lookup
+        if content.get('output'):
+            for idea in content['output']:
+                idea['url_hash'] = url_hash
+                
+        results_parsed.append(content)
 
     ideas = []
     for result in results_parsed:
@@ -126,6 +153,26 @@ def save_and_parse_results(result_file_id):
     
     logger.info(f"Successfully parsed {len(ideas)} ideas")
     return ideas
+
+def get_latest_batch_id(mongodb_client):
+    """Fetch the latest batch ID from the MongoDB database."""
+    logger.debug("Fetching latest batch ID from MongoDB")
+    batch_id = mongodb_client.get_latest_batch_id()
+    if batch_id:
+        logger.info(f"Found latest batch ID: {batch_id}")
+        return batch_id
+    logger.warning("No batch ID found")
+    return None
+
+def check_batch_status(batch_id):
+    """Check the status of a batch job from OpenAI."""
+    logger.info(f"Checking batch status for ID: {batch_id}")
+    batch_status = openai_client.batches.retrieve(batch_id)
+    if batch_status.status != "completed" or batch_status.output_file_id is None:
+        logger.error(f"Batch {batch_id} failed. Please check the logs in platform.openai.com.")
+        return
+    logger.info(f"Batch {batch_id} completed successfully")
+    return batch_status.output_file_id
 
 def create_embedding(text):
     """Create embedding for the given text using OpenAI."""
@@ -228,7 +275,7 @@ def fetch_batch_status():
             
             ideas = save_and_parse_results(result_file_id)
             process_idea_vectors(ideas)
-            write_ideas_to_notion(ideas)
+            write_ideas_to_notion(ideas, mongodb_client)
             
             logger.info(f"Successfully completed batch processing for {batch_id}")
     except Exception as e:

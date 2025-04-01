@@ -35,20 +35,24 @@ class MongoDBClient:
         cursor = self.seen_urls.find({}, {"url_hash": 1, "_id": 0})
         return [doc["url_hash"] for doc in cursor]
 
-    def bulk_insert_seen_urls(self, url_hashes):
-        """Insert multiple URL hashes into the database."""
-        if not url_hashes:
+    def bulk_insert_seen_urls(self, url_data_list):
+        if not url_data_list:
             return
             
-        documents = [
-            {"url_hash": url_hash, "created_at": datetime.utcnow()} 
-            for url_hash in url_hashes
-        ]
+        documents = []
+        for url_data in url_data_list:
+            doc = {
+                "url_hash": url_data["url_hash"],
+                "url": url_data.get("url", ""),
+                "title": url_data.get("title", ""),
+                "created_at": datetime.utcnow()
+            }
+            documents.append(doc)
         
         try:
             # Use ordered=False to continue inserting even if some documents fail
             result = self.seen_urls.insert_many(documents, ordered=False)
-            logger.info(f"Inserted {len(result.inserted_ids)} URL hashes")
+            logger.info(f"Inserted {len(result.inserted_ids)} URL records")
         except Exception as e:
             # Some documents might have been inserted even if there was an error
             logger.error(f"Error during bulk insert: {e}")
