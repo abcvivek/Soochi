@@ -1,14 +1,13 @@
 import json
 import os
-import logging
 from openai import OpenAI
 from soochi.config import config
 from soochi.mongodb_client import MongoDBClient
 from dotenv import load_dotenv
 from pinecone import Pinecone, ServerlessSpec
 from notion_client import Client as NotionClient
+from soochi.logger import logger
 from soochi.constants import (
-    PINECONE_INDEX_NAME,
     EMBEDDING_DIMENSION,
     EMBEDDING_METRIC,
     SIMILARITY_THRESHOLD,
@@ -18,9 +17,6 @@ from soochi.constants import (
     AWS_CLOUD
 )
 
-# Set up logging
-logger = logging.getLogger(__name__)
-
 # Load environment variables
 load_dotenv()
 
@@ -28,6 +24,7 @@ load_dotenv()
 openai_client = OpenAI(api_key=config.openai_api_key)
 
 # Initialize Pinecone client
+pinecone_index_name = config.pinecone_index_name
 pinecone_client = Pinecone(api_key=config.pinecone_api_key)
 
 # Initialize Notion client
@@ -35,13 +32,13 @@ notion_client = NotionClient(auth=config.notion_api_key)
 
 # Check if the index already exists
 try:
-    pinecone_client.describe_index(PINECONE_INDEX_NAME)
-    logger.info(f"Index '{PINECONE_INDEX_NAME}' already exists.")
+    pinecone_client.describe_index(pinecone_index_name)
+    logger.info(f"Index '{pinecone_index_name}' already exists.")
 except Exception as e:
     if "not found" in str(e):
         # Index does not exist, so create it
         pinecone_client.create_index(
-            name=PINECONE_INDEX_NAME,
+            name=pinecone_index_name,
             dimension=EMBEDDING_DIMENSION,
             metric=EMBEDDING_METRIC,
             spec=ServerlessSpec(
@@ -49,12 +46,12 @@ except Exception as e:
                 region=AWS_REGION
             )
         )
-        logger.info(f"Index '{PINECONE_INDEX_NAME}' created.")
+        logger.info(f"Index '{pinecone_index_name}' created.")
     else:
         logger.error(f"Error checking index: {e}")
 
 def write_ideas_to_notion(ideas, mongodb_client):
-    """Write ideas to Notion database."""
+    """Write ideas to Notion database, syncing with Pinecone data."""
     logger.info(f"Writing {len(ideas)} ideas to Notion")
     try:
         for idea in ideas:
@@ -66,35 +63,98 @@ def write_ideas_to_notion(ideas, mongodb_client):
             # Format date for Notion if available
             notion_date = None
             if url_metadata["created_at"]:
+                # Handle the case where created_at is already a string
                 notion_date = {
                     "date": {
-                        "start": url_metadata["created_at"].isoformat()
+                        "start": url_metadata["created_at"]
                     }
                 }
             
-            # Create Notion page with the additional metadata
-            notion_client.pages.create(
-                parent={"database_id": os.getenv("NOTION_DATABASE_ID")},
-                properties={
-                    "Title": {"title": [{"text": {"content": idea['title']}}]},
-                    "Type": {"rich_text": [{"text": {"content": idea['type']}}]},
-                    "Problem Statement": {"rich_text": [{"text": {"content": idea['problemStatement']}}]},
-                    "Solution": {"rich_text": [{"text": {"content": idea['solution']}}]},
-                    "Target Audience": {"rich_text": [{"text": {"content": idea['targetAudience']}}]},
-                    "Innovation Score": {"number": idea['innovationScore']},
-                    "Potential Applications": {"rich_text": [{"text": {"content": idea['potentialApplications']}}]},
-                    "Prerequisites": {"rich_text": [{"text": {"content": idea['prerequisites']}}]},
-                    "Additional Notes": {"rich_text": [{"text": {"content": idea['additionalNotes']}}]},
-                    "Count": {"number": idea.get('count', 1)},
-                    "Source URL": {"url": url_metadata["url"] if url_metadata["url"] else None},
-                    "Source Title": {"rich_text": [{"text": {"content": url_metadata["title"]}}] if url_metadata["title"] else []},
-                    "Processed Date": notion_date if notion_date else {"date": None}
-                }
-            )
+            # Check if idea already exists in Notion
+            existing_page = find_idea_in_notion(idea['title'])
+            
+            if existing_page:
+                # Update existing Notion page
+                logger.info(f"Updating existing idea in Notion: {idea['title']}")
+                
+                # Get the latest count from Pinecone
+                index = pinecone_client.Index(pinecone_index_name)
+                try:
+                    pinecone_data = index.fetch(ids=[idea['title']])
+                    if idea['title'] in pinecone_data['vectors']:
+                        count = pinecone_data['vectors'][idea['title']]['metadata'].get('count', 1)
+                    else:
+                        count = 1
+                except Exception as e:
+                    logger.error(f"Error fetching count from Pinecone: {e}")
+                    count = 1
+                
+                notion_client.pages.update(
+                    page_id=existing_page['id'],
+                    properties={
+                        "Count": {"number": count},
+                        "Type": {"rich_text": [{"text": {"content": idea['type']}}]},
+                        "Problem Statement": {"rich_text": [{"text": {"content": idea['problemStatement']}}]},
+                        "Solution": {"rich_text": [{"text": {"content": idea['solution']}}]},
+                        "Target Audience": {"rich_text": [{"text": {"content": idea['targetAudience']}}]},
+                        "Innovation Score": {"number": idea['innovationScore']},
+                        "Potential Applications": {"rich_text": [{"text": {"content": idea['potentialApplications']}}]},
+                        "Prerequisites": {"rich_text": [{"text": {"content": idea['prerequisites']}}]},
+                        "Additional Notes": {"rich_text": [{"text": {"content": idea['additionalNotes']}}]},
+                        "Source URL": {"url": url_metadata["url"] if url_metadata["url"] else None},
+                        "Source Title": {"rich_text": [{"text": {"content": url_metadata["title"]}}] if url_metadata["title"] else []},
+                        "Processed Date": notion_date if notion_date else {"date": None}
+                    }
+                )
+            else:
+                # Create new Notion page
+                logger.info(f"Creating new idea in Notion: {idea['title']}")
+                notion_client.pages.create(
+                    parent={"database_id": os.getenv("NOTION_DATABASE_ID")},
+                    properties={
+                        "Title": {"title": [{"text": {"content": idea['title']}}]},
+                        "Type": {"rich_text": [{"text": {"content": idea['type']}}]},
+                        "Problem Statement": {"rich_text": [{"text": {"content": idea['problemStatement']}}]},
+                        "Solution": {"rich_text": [{"text": {"content": idea['solution']}}]},
+                        "Target Audience": {"rich_text": [{"text": {"content": idea['targetAudience']}}]},
+                        "Innovation Score": {"number": idea['innovationScore']},
+                        "Potential Applications": {"rich_text": [{"text": {"content": idea['potentialApplications']}}]},
+                        "Prerequisites": {"rich_text": [{"text": {"content": idea['prerequisites']}}]},
+                        "Additional Notes": {"rich_text": [{"text": {"content": idea['additionalNotes']}}]},
+                        "Count": {"number": 1},
+                        "Source URL": {"url": url_metadata["url"] if url_metadata["url"] else None},
+                        "Source Title": {"rich_text": [{"text": {"content": url_metadata["title"]}}] if url_metadata["title"] else []},
+                        "Processed Date": notion_date if notion_date else {"date": None}
+                    }
+                )
         logger.info("Successfully wrote ideas to Notion")
     except Exception as e:
         logger.error(f"Error writing to Notion: {e}")
         raise
+
+def find_idea_in_notion(title):
+    """Find an idea in Notion by its title using Notion's filter API."""
+    logger.debug(f"Searching for idea in Notion: {title}")
+    try:
+        response = notion_client.databases.query(
+            database_id=os.getenv("NOTION_DATABASE_ID"),
+            filter={
+                "property": "Title",
+                "title": {
+                    "equals": title
+                }
+            }
+        )
+        
+        if response["results"]:
+            logger.debug(f"Found existing idea in Notion: {title}")
+            return response["results"][0]
+        
+        logger.debug(f"No existing idea found in Notion: {title}")
+        return None
+    except Exception as e:
+        logger.error(f"Error searching Notion: {e}")
+        return None
 
 def fetch_url_metadata(mongodb_client, url_hash):
     """Fetch URL metadata from the seen_urls collection."""
@@ -102,10 +162,15 @@ def fetch_url_metadata(mongodb_client, url_hash):
     try:
         url_data = mongodb_client.seen_urls.find_one({"url_hash": url_hash})
         if url_data:
+            # Handle datetime conversion to string if needed
+            created_at = url_data.get("created_at", "")
+            if created_at and hasattr(created_at, 'isoformat'):
+                created_at = created_at.isoformat()
+                
             return {
                 "url": url_data.get("url", ""),
                 "title": url_data.get("title", ""),
-                "created_at": url_data.get("created_at", "")
+                "created_at": created_at
             }
         logger.warning(f"No URL metadata found for hash: {url_hash}")
         return {"url": "", "title": "", "created_at": ""}
@@ -195,7 +260,7 @@ def create_embedding(text):
 def process_idea_vectors(ideas):
     """Process ideas and handle vector similarity checks."""
     logger.info(f"Processing vectors for {len(ideas)} ideas")
-    index = pinecone_client.Index(PINECONE_INDEX_NAME)
+    index = pinecone_client.Index(pinecone_index_name)
     
     for i, idea in enumerate(ideas, 1):
         logger.debug(f"Processing idea {i}/{len(ideas)}: {idea['title']}")

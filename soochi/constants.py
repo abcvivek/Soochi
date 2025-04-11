@@ -1,7 +1,6 @@
 """Constants used throughout the application."""
 
 # Pinecone related constants
-PINECONE_INDEX_NAME = "soochi-idea-index"
 EMBEDDING_DIMENSION = 1536
 EMBEDDING_METRIC = "cosine"
 SIMILARITY_THRESHOLD = 0.75
