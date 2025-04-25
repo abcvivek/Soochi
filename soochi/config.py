@@ -15,6 +15,11 @@ class Config:
 
         # OpenAI settings
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
+        self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4o")
+
+        # Google AI settings
+        self.google_ai_api_key = os.getenv("GOOGLE_AI_API_KEY")
+        self.google_ai_model = os.getenv("GOOGLE_AI_MODEL", "gemini-2.0-flash")
 
         # Pinecone settings
         self.pinecone_api_key = os.getenv("PINECONE_API_KEY")
@@ -22,6 +27,7 @@ class Config:
 
         # Notion settings
         self.notion_api_key = os.getenv("NOTION_API_KEY")
+        self.notion_database_id = os.getenv("NOTION_DATABASE_ID")
         
         # MongoDB settings
         self.mongo_uri = os.getenv("MONGO_URI")

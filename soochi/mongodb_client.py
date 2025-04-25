@@ -80,6 +80,10 @@ class MongoDBClient:
         if latest_batch:
             return latest_batch["batch_id"]
         return None
+        
+    def fetch_url_metadata(self, url_hash):
+        """Fetch URL metadata from the seen_urls collection."""
+        return self.seen_urls.find_one({"url_hash": url_hash})
 
     def close(self):
         """Close the MongoDB connection."""

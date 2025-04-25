@@ -22,10 +22,12 @@ client = OpenAI(
 def fetch_feeds():
     feed_links = []
     for feed_name, feed_url in config.feeds.items():
+        logger.info("*****************")
         logger.info(f"Fetching feed: {feed_name}")
         try:
             feed = feedparser.parse(feed_url)
             logger.info(f"Found total entries: {len(feed.entries)}")
+            logger.info("*****************")
             feed_links.extend(process_feed_entries(feed.entries))
         except Exception as e:
             logger.error(f"Error fetching feed {feed_name}: {e}")
@@ -52,20 +54,19 @@ def deduplicate_urls(feed_links):
         if url_hash not in seen_hashes:
             seen_hashes.add(url_hash)
             new_urls.append(url)
-    logger.info(f"New URLs: {len(new_urls)}")
     return new_urls
 
 
 def fetch_seen_urls_hash():
     with MongoDBClient() as mongodb_client:
         seen_urls_hash = mongodb_client.fetch_seen_urls_hash()
-        logger.info(f"Seen URLs: {len(seen_urls_hash)}")
+        logger.info(f"Seen URLs From DB: {len(seen_urls_hash)}")
         return seen_urls_hash
 
 
 def deduplicate_urls_from_all_urls(new_urls, seen_urls_hash):
     deduped_urls = [url for url in new_urls if hash_url(url) not in seen_urls_hash]
-    logger.info(f"Deduped URLs: {len(deduped_urls)}")
+    logger.info(f"Deduped URLs after removing seen URLs from DB: {len(deduped_urls)}")
     return deduped_urls
 
 
@@ -112,7 +113,7 @@ def create_tasks(deduped_urls):
             "method": "POST",
             "url": "/v1/chat/completions",
             "body": {
-                "model": "gpt-4o",
+                "model": config.openai_model,
                 "temperature": 0.5,
                 "response_format": {
                     "type": "json_object"
@@ -153,7 +154,7 @@ def init():
     feed_links = fetch_feeds()
     new_urls = deduplicate_urls(feed_links)
     logger.info(f"Total feed count: {len(config.feeds)}")
-    logger.info(f"Total entry count: {len(feed_links)}")
+    logger.info(f"Total URLs: {len(feed_links)}")
     logger.info(f"Deduped URLs: {len(new_urls)}")
 
     seen_urls_hash = fetch_seen_urls_hash()
@@ -200,14 +201,6 @@ def init():
     os.remove(file_name)
 
     logger.info("Local File deleted")
-
-    # Prompts
-    """
-    1. Finding SaaS/Startup/Opensource/Project Ideas
-    2. Finding a profitable idea which could be a simple dropshipping business
-    3. Finding Problems and Pain Points and the mention solutions
-    4. Unique concepts mentioned
-    """
 
 
 if __name__ == "__main__":
