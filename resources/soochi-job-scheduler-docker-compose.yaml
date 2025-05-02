@@ -1,9 +1,0 @@
-version: "3.8"
-
-services:
-  soochi-job-scheduler:
-    image: soochi-job-scheduler:latest
-    container_name: soochi-job-scheduler
-    command: ["poetry", "run", "python", "soochi/main.py"]
-    env_file:
-      - ../.env

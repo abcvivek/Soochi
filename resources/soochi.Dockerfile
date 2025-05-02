@@ -25,5 +25,10 @@ COPY . .
 # Install the project itself
 RUN poetry install
 
-# Default command (override in Cloud Run Job)
-CMD ["poetry", "run", "python", "soochi/fetch_batch_status.py"]
+# Make command configurable with build argument
+ARG COMMAND_PATH=soochi/main.py
+ENV COMMAND_PATH=$COMMAND_PATH
+
+# Default command (override with --build-arg COMMAND_PATH=path/to/script.py)
+# Using ENV with ARG ensures the variable is available at runtime
+CMD ["poetry", "run", "python", "$COMMAND_PATH"]

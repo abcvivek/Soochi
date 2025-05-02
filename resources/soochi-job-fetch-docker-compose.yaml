@@ -1,9 +1,0 @@
-version: "3.8"
-
-services:
-  soochi-job-fetch:
-    image: soochi-job-fetch:latest
-    container_name: soochi-job-fetch
-    command: ["poetry", "run", "python", "soochi/fetch_batch_status.py"]
-    env_file:
-      - ../.env
