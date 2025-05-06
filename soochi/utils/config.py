@@ -10,7 +10,7 @@ class Config:
         self._load_env_file()
         
         # Project paths
-        self.project_root = Path(__file__).parent.parent
+        self.project_root = Path(__file__).parent.parent.parent
         self.feeds_file = self.project_root / "feeds.yaml"
 
         # OpenAI settings

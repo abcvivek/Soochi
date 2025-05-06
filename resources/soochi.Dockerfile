@@ -26,7 +26,7 @@ COPY . .
 RUN poetry install
 
 # Make command configurable with build argument
-ARG COMMAND_PATH=soochi/main.py
+ARG COMMAND_PATH=soochi/openai_publisher.py
 ENV COMMAND_PATH=$COMMAND_PATH
 
 # Default command (override with --build-arg COMMAND_PATH=path/to/script.py)

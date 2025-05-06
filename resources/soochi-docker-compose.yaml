@@ -1,16 +1,24 @@
 version: "3.8"
 
 services:
-  soochi-job-scheduler:
-    image: soochi-job-scheduler:latest
-    container_name: soochi-job-scheduler
-    command: ["poetry", "run", "python", "soochi/main.py"]
+  soochi-openai-publisher:
+    image: soochi-openai-publisher:latest
+    container_name: soochi-openai-publisher
+    command: ["poetry", "run", "python", "soochi/openai_publisher.py"]
     env_file:
       - ../.env
 
-  soochi-job-fetch:
-    image: soochi-job-fetch:latest
-    container_name: soochi-job-fetch
-    command: ["poetry", "run", "python", "soochi/fetch_batch_status.py"]
+  soochi-openai-subscriber:
+    image: soochi-openai-subscriber:latest
+    container_name: soochi-openai-subscriber
+    command: ["poetry", "run", "python", "soochi/openai_subscriber.py"]
+    env_file:
+      - ../.env
+
+    
+  soochi-gemini-processor:
+    image: soochi-gemini-processor:latest
+    container_name: soochi-gemini-processor
+    command: ["poetry", "run", "python", "soochi/gemini_processor.py"]
     env_file:
       - ../.env

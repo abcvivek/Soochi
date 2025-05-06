@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta
 from pymongo import MongoClient
-from soochi.config import config
-from soochi.logger import logger
+
+from soochi.utils.config import config
+from soochi.utils.logger import logger
 
 class MongoDBClient:
     def __init__(self):
