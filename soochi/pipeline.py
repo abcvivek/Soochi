@@ -77,10 +77,10 @@ class ContentProcessingPipeline:
             # Process content with AI service
             if self.batch_mode:
                 # Batch processing (OpenAI)
-                self._process_batch(deduped_urls[:2])
+                self._process_batch(deduped_urls)
             else:
                 # Synchronous processing (Gemini)
-                self._process_synchronous(deduped_urls[:2])
+                self._process_synchronous(deduped_urls)
                 
             logger.info("Processing complete")
         except Exception as e:
