@@ -11,9 +11,16 @@ Soochi is an AI-powered content aggregation and processing system designed to co
 - Batch processing support for OpenAI
 
 ## Architecture
-- **Pinecone**: Source of truth for ideas and similarity detection
-- **Notion**: User-friendly interface for viewing and managing ideas
+- **Pinecone**: Primary source of truth for ideas and similarity detection
+- **Notion**: User-friendly interface for viewing and managing ideas, kept in sync with Pinecone
 - **MongoDB**: Storage for URL metadata and batch job tracking
+
+### Data Flow
+1. Content is collected from RSS feeds
+2. Ideas are extracted using AI models (OpenAI or Google Gemini)
+3. Ideas are stored in Pinecone for vector similarity search
+4. Ideas are simultaneously added to Notion for user-friendly management
+5. Pinecone is used for similarity detection to avoid duplicate ideas
 
 ## Installation
 1. Clone the repository:
@@ -42,30 +49,27 @@ To switch between environments, set the `SOOCHI_ENV` environment variable before
 ```bash
 # For development (default)
 export SOOCHI_ENV=dev
-python -m soochi.main
 
 # For production
 export SOOCHI_ENV=prod
-python -m soochi.main
 ```
 
 ## Usage
 
 ### Processing Content with OpenAI
 ```bash
-python -m soochi.main
+python -m soochi.openai_publisher
 ```
 
-### Checking Batch Status (OpenAI)
+### Processing OpenAI Batch Results
 ```bash
-python -m soochi.fetch_batch_status
+python -m soochi.openai_subscriber
 ```
 
 ### Processing Content with Google Gemini
 ```bash
 python -m soochi.gemini_processor
 ```
-
 
 ## Configuration
 - **feeds.yaml**: Configure your RSS feeds and their enabled/disabled status

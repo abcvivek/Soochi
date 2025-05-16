@@ -164,7 +164,7 @@ class TestContentProcessingPipeline:
         
         # 2. Verify MongoDB interactions
         mock_mongodb_instance.bulk_insert_seen_urls.assert_called_once()
-        mock_mongodb_instance.create_batch_job.assert_called_once_with("batch-123")
+        mock_mongodb_instance.create_batch_job.assert_called_once_with("batch-123", vendor="openai")
         
         # 3. Verify content processing
         assert mock_trafilatura.fetch_url.call_count == 2  # Called for each URL

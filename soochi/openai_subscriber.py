@@ -20,7 +20,7 @@ def main():
         
         # Get the latest batch ID
         with MongoDBClient() as mongodb_client:
-            batch_id = mongodb_client.get_latest_batch_id()
+            batch_id = mongodb_client.get_latest_batch_id(vendor="openai")
             
         if not batch_id:
             logger.warning("No batch jobs found")

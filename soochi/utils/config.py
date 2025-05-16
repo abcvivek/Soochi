@@ -8,10 +8,12 @@ class Config:
         # Load appropriate .env file based on environment
         self.env = os.getenv("SOOCHI_ENV", "dev")
         self._load_env_file()
+
+        self.test_feeds_file = os.getenv("TEST_FEEDS_FILE", "feeds.yaml")
         
         # Project paths
         self.project_root = Path(__file__).parent.parent.parent
-        self.feeds_file = self.project_root / "feeds.yaml"
+        self.feeds_file = self.project_root / self.test_feeds_file
 
         # OpenAI settings
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -36,6 +38,8 @@ class Config:
         # Logging settings
         self.log_level = os.getenv("LOG_LEVEL", "INFO").upper()
         self.log_format = os.getenv("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+
+        self.urls_to_test = int(os.getenv("URLS_TO_TEST", -1))
 
         # Load feeds from YAML
         self.feeds = self._load_feeds()

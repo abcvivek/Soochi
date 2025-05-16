@@ -64,17 +64,21 @@ class MongoDBClient:
         result = self.seen_urls.delete_many({"created_at": {"$lt": cutoff_date}})
         logger.info(f"Deleted {result.deleted_count} old URL hashes")
 
-    def create_batch_job(self, batch_id):
-        """Create a new batch job record."""
+    def create_batch_job(self, batch_id, vendor=None):
         self.batch_jobs.insert_one({
             "batch_id": batch_id,
+            "vendor": vendor,
             "created_at": datetime.utcnow()
         })
-        logger.info(f"Created batch job with ID: {batch_id}")
+        logger.info(f"Created batch job with ID: {batch_id}, vendor: {vendor}")
 
-    def get_latest_batch_id(self):
-        """Fetch the latest batch ID from the database."""
+    def get_latest_batch_id(self, vendor=None):
+        query = {}
+        if vendor:
+            query["vendor"] = vendor
+            
         latest_batch = self.batch_jobs.find_one(
+            query,
             sort=[("created_at", -1)]
         )
         

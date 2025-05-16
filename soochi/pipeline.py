@@ -12,6 +12,8 @@ from soochi.services.vector_service import VectorService
 from soochi.services.notion_service import NotionService
 from soochi.utils.mongodb_client import MongoDBClient
 from soochi.utils.logger import logger
+from soochi.utils.config import config
+from soochi.utils.fetch_utils import fetch_url_with_cache
 
 
 class ContentProcessingPipeline:
@@ -74,6 +76,9 @@ class ContentProcessingPipeline:
             with MongoDBClient() as mongodb_client:
                 mongodb_client.bulk_insert_seen_urls(url_data_list)
 
+            if config.urls_to_test != -1:
+                deduped_urls = deduped_urls[:config.urls_to_test]
+
             # Process content with AI service
             if self.batch_mode:
                 # Batch processing (OpenAI)
@@ -100,8 +105,13 @@ class ContentProcessingPipeline:
         
         # Create tasks for batch processing
         tasks = []
+
         for url in deduped_urls:
-            raw_content = trafilatura.fetch_url(url)
+            # Use cached fetch utility with optimized settings
+            raw_content = fetch_url_with_cache(url, max_redirects=-1, timeout=2)
+            if not raw_content:
+                continue
+                
             content = trafilatura.extract(raw_content)
             if not content:
                 continue
@@ -117,7 +127,7 @@ class ContentProcessingPipeline:
         
         # Store the batch job ID in the database
         with MongoDBClient() as mongodb_client:
-            mongodb_client.create_batch_job(batch_id)
+            mongodb_client.create_batch_job(batch_id, vendor="openai")
         
     
     def _process_synchronous(self, deduped_urls: List[str]):
@@ -133,8 +143,13 @@ class ContentProcessingPipeline:
         
         # Process each URL
         all_ideas = []
+        
         for url in deduped_urls:
-            raw_content = trafilatura.fetch_url(url)
+            # Use cached fetch utility with optimized settings
+            raw_content = fetch_url_with_cache(url, max_redirects=-1, timeout=2)
+            if not raw_content:
+                continue
+                
             content = trafilatura.extract(raw_content)
             if not content:
                 continue
@@ -147,7 +162,7 @@ class ContentProcessingPipeline:
         # Store a reference to the results in MongoDB
         batch_id = f"gemini-{int(time.time())}"
         with MongoDBClient() as mongodb_client:
-            mongodb_client.create_batch_job(batch_id)
+            mongodb_client.create_batch_job(batch_id, vendor="gemini")
             
             # Update VectorService with NotionService and MongoDBClient
             self.vector_service.notion_service = self.notion_service
@@ -158,14 +173,14 @@ class ContentProcessingPipeline:
 
         logger.info(f"Processed {len(all_ideas)} ideas")
     
-    def process_batch_results(self, batch_id: str):
+    def process_batch_results(self, batch_id: str, vendor="openai"):
         """
         Process the results of a batch job.
         
         Args:
             batch_id: ID of the batch job to process
         """
-        logger.info(f"Processing batch results for job {batch_id}")
+        logger.info(f"Processing batch results for job {batch_id} from vendor {vendor}")
         try:
             # Check batch status
             openai_service = self.ai_service  # Type: OpenAIService

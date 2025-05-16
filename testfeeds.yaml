@@ -1,0 +1,7 @@
+feeds:
+  - name: prompts
+    url: https://www.google.co.in/alerts/feeds/17096705175767825624/15093936544173025558
+    enabled: true
+  - name: enterprise
+    url: https://www.google.co.in/alerts/feeds/17096705175767825624/8610919649392730869
+    enabled: false

@@ -9,6 +9,7 @@ from typing import List, Dict, Any
 
 from soochi.utils.logger import logger
 from soochi.utils.utils import hash_url
+from soochi.utils.fetch_utils import fetch_url_with_cache
 
 class URLService:
     """Service for URL-related operations."""
@@ -104,7 +105,8 @@ class URLService:
         
         for url in urls:
             try:
-                raw_content = trafilatura.fetch_url(url)
+                # Use cached fetch utility with optimized settings
+                raw_content = fetch_url_with_cache(url, max_redirects=-1, timeout=2)
                 if not raw_content:
                     continue
                     
